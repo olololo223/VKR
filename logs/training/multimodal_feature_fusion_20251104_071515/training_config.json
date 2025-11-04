@@ -1,0 +1,44 @@
+{
+  "visual_model_path": "logs/training\\visual_cnn_20251103_180833\\final_model.h5",
+  "audio_model_path": "logs/training\\audio_cnn_improved_20251027_222157\\final_audio_model.h5",
+  "common_emotions": [
+    "angry",
+    "happy",
+    "fear",
+    "sad",
+    "disgust",
+    "surprise",
+    "neutral"
+  ],
+  "fusion_method": "feature_fusion",
+  "training_params": {
+    "batch_size": 32,
+    "epochs": 500,
+    "test_size": 0.2,
+    "use_augmentation": true,
+    "learning_rate": 0.0002
+  },
+  "data_info": {
+    "train_samples": 795,
+    "val_samples": 199,
+    "test_samples": 249,
+    "class_distribution": [
+      128,
+      128,
+      128,
+      128,
+      27,
+      128,
+      128
+    ],
+    "class_weights": {
+      "0": 0.8872767857142857,
+      "1": 0.8872767857142857,
+      "2": 0.8872767857142857,
+      "3": 0.8872767857142857,
+      "4": 4.2063492063492065,
+      "5": 0.8872767857142857,
+      "6": 0.8872767857142857
+    }
+  }
+}

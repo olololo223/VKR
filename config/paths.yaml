@@ -1,0 +1,14 @@
+data:
+  fer2013: 'data/fer2013new.csv'
+  ravdess_video: 'data/ravdess/'
+  ravdess_audio: 'data/ravdess_audio/'
+  output: 'data/processed/'
+
+models:
+  visual: 'data/models/visual_model.h5'
+  audio: 'data/models/audio_model.h5'
+  multimodal: 'data/models/multimodal_model.h5'
+
+logs:
+  tensorboard: 'logs/tensorboard/'
+  training: 'logs/training/'

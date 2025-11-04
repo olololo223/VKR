@@ -1,0 +1,80 @@
+{
+  "data": {
+    "image_size": [
+      48,
+      48
+    ],
+    "grayscale": true,
+    "emotions": [
+      "angry",
+      "disgust",
+      "fear",
+      "happy",
+      "sad",
+      "surprise",
+      "neutral"
+    ],
+    "num_classes": 7
+  },
+  "model": {
+    "cnn": {
+      "filters": [
+        32,
+        64,
+        128
+      ],
+      "dense_units": 512,
+      "dropout_rate": 0.5,
+      "activation": "relu"
+    },
+    "transfer_learning": {
+      "base_model": "MobileNetV2",
+      "input_shape": [
+        48,
+        48,
+        3
+      ],
+      "trainable_base": false
+    }
+  },
+  "training": {
+    "batch_size": 128,
+    "epochs": 20,
+    "early_stopping_patience": 5,
+    "reduce_lr_patience": 3,
+    "validation_split": 0.2
+  },
+  "multimodal": {
+    "visual_weight": 0.6,
+    "audio_weight": 0.4
+  },
+  "audio": {
+    "sample_rate": 22050,
+    "n_mfcc": 13,
+    "n_fft": 2048,
+    "hop_length": 512,
+    "max_length": 200
+  },
+  "ravdess": {
+    "emotions": [
+      "neutral",
+      "calm",
+      "happy",
+      "sad",
+      "angry",
+      "fear",
+      "disgust",
+      "surprise"
+    ],
+    "emotion_map": {
+      "01": "0,",
+      "02": "1,",
+      "03": "2,",
+      "04": "3,",
+      "05": "4,",
+      "06": "5,",
+      "07": "6,",
+      "08": 7
+    }
+  }
+}

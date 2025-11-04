@@ -1,0 +1,18 @@
+{
+  "visual_model_path": "logs/training/visual_cnn_20251027_191221/final_model.h5",
+  "audio_model_path": "logs/training/audio_cnn_improved_20251027_222157/final_audio_model.h5",
+  "common_emotions": [
+    "angry",
+    "happy",
+    "fear",
+    "sad",
+    "disgust",
+    "surprise",
+    "neutral"
+  ],
+  "training_params": {
+    "batch_size": 32,
+    "epochs": 50,
+    "test_size": 0.2
+  }
+}
