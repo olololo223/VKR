@@ -6,6 +6,7 @@ from datetime import datetime
 from sklearn.utils.class_weight import compute_class_weight
 from src.models.audio_model import AudioModelFactory
 from src.data_preprocessing.ravdess_audio_processor import RavdessAudioProcessor
+from tensorflow.keras import layers, models, regularizers, callbacks, optimizers
 
 class AudioModelTrainer:
     def __init__(self, config_path='config/model_config.json'):
@@ -19,31 +20,31 @@ class AudioModelTrainer:
     def setup_callbacks(self, log_dir):
         """Настройка callback'ов для обучения"""
         callbacks = [
-            tf.keras.callbacks.EarlyStopping(
+            callbacks.EarlyStopping(
                 patience=20,  # Увеличили patience
                 restore_best_weights=True,
                 verbose=1,
                 monitor='val_accuracy',
                 min_delta=0.01  # Минимальное улучшение
             ),
-            tf.keras.callbacks.ReduceLROnPlateau(
+            callbacks.ReduceLROnPlateau(
                 factor=0.5,
                 patience=10,  # Увеличили patience
                 min_lr=1e-6,
                 verbose=1
             ),
-            tf.keras.callbacks.ModelCheckpoint(
+            callbacks.ModelCheckpoint(
                 filepath=os.path.join(log_dir, 'best_audio_model.h5'),
                 save_best_only=True,
                 monitor='val_accuracy',
                 mode='max',
                 verbose=1
             ),
-            tf.keras.callbacks.TensorBoard(
+            callbacks.TensorBoard(
                 log_dir=os.path.join(log_dir, 'tensorboard'),
                 histogram_freq=1
             ),
-            tf.keras.callbacks.CSVLogger(
+            callbacks.CSVLogger(
                 filename=os.path.join(log_dir, 'training_log.csv')
             )
         ]
@@ -77,41 +78,41 @@ class AudioModelTrainer:
 
     def create_improved_model(self, input_shape, num_classes):
         """Улучшенная архитектура модели"""
-        model = tf.keras.Sequential([
+        model = models.Sequential([
             # Первый блок - больше фильтров
-            tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same', input_shape=input_shape),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.MaxPooling2D((1, 2)),
-            tf.keras.layers.Dropout(0.3),
+            layers.Conv2D(64, (3, 3), activation='relu', padding='same', input_shape=input_shape),
+            layers.BatchNormalization(),
+            layers.MaxPooling2D((1, 2)),
+            layers.Dropout(0.3),
 
             # Второй блок
-            tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.MaxPooling2D((1, 2)),
-            tf.keras.layers.Dropout(0.3),
+            layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
+            layers.BatchNormalization(),
+            layers.MaxPooling2D((1, 2)),
+            layers.Dropout(0.3),
 
             # Третий блок
-            tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same'),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.MaxPooling2D((1, 2)),
-            tf.keras.layers.Dropout(0.4),
+            layers.Conv2D(256, (3, 3), activation='relu', padding='same'),
+            layers.BatchNormalization(),
+            layers.MaxPooling2D((1, 2)),
+            layers.Dropout(0.4),
 
             # Четвертый блок
-            tf.keras.layers.Conv2D(512, (3, 3), activation='relu', padding='same'),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.GlobalAveragePooling2D(),
-            tf.keras.layers.Dropout(0.5),
+            layers.Conv2D(512, (3, 3), activation='relu', padding='same'),
+            layers.BatchNormalization(),
+            layers.GlobalAveragePooling2D(),
+            layers.Dropout(0.5),
 
             # Полносвязные слои
-            tf.keras.layers.Dense(512, activation='relu'),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.Dropout(0.5),
+            layers.Dense(512, activation='relu'),
+            layers.BatchNormalization(),
+            layers.Dropout(0.5),
             
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.Dropout(0.3),
+            layers.Dense(256, activation='relu'),
+            layers.BatchNormalization(),
+            layers.Dropout(0.3),
 
-            tf.keras.layers.Dense(num_classes, activation='softmax')
+            layers.Dense(num_classes, activation='softmax')
         ])
         
         return model
@@ -166,7 +167,7 @@ class AudioModelTrainer:
             raise ValueError("Неизвестный тип модели")
 
         # Компиляция модели с другим оптимизатором
-        optimizer = tf.keras.optimizers.Adam(
+        optimizer = optimizers.Adam(
             learning_rate=0.001,
             beta_1=0.9,
             beta_2=0.999,
