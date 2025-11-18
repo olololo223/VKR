@@ -12,7 +12,6 @@ import glob
 from PIL import Image, ImageTk
 import time
 
-# Включаем небезопасную десериализацию для Lambda слоев
 tf.keras.config.enable_unsafe_deserialization()
 
 
@@ -22,31 +21,25 @@ class EmotionRecognitionGUI:
         self.root.title("Распознавание эмоций в реальном времени")
         self.root.geometry("1000x700")
 
-        # Переменные состояния
         self.is_running = False
         self.use_camera = tk.BooleanVar(value=True)
         self.use_microphone = tk.BooleanVar(value=True)
 
-        # Модели
         self.visual_model = None
         self.audio_model = None
         self.multimodal_model = None
 
-        # Потоки и очереди
         self.audio_queue = queue.Queue()
         self.audio_buffer = []
 
-        # Текущие предсказания
         self.current_emotion = "Нейтрально"
         self.current_confidence = 0.0
         self.current_mode = "Ожидание"
         self.current_photo = None
 
-        # Сглаживание предсказаний
         self.prediction_buffer = []
         self.buffer_size = 5
 
-        # Настройки аудио
         self.audio_settings = {
             'sample_rate': 22050,
             'chunk_size': 1024,
@@ -58,16 +51,13 @@ class EmotionRecognitionGUI:
             'max_length': 200
         }
 
-        # Эмоции
         self.emotions = ['angry', 'happy', 'fear', 'sad', 'disgust', 'surprise', 'neutral']
         self.emotions_ru = ['Злость', 'Радость', 'Страх', 'Грусть', 'Отвращение', 'Удивление', 'Нейтрально']
 
-        # Маппинг RAVDESS в общие эмоции
         self.ravdess_to_common = {
             0: 6, 1: 6, 2: 1, 3: 3, 4: 0, 5: 2, 6: 4, 7: 5
         }
 
-        # ФИКС: система калибровки и коррекции предсказаний
         self.prediction_correction = {
             'visual': {
                 'last_predictions': [],
@@ -86,7 +76,6 @@ class EmotionRecognitionGUI:
             }
         }
 
-        # ФИКС: приоритет эмоций для коррекции
         self.emotion_priority = {
             'Нейтрально': 0.3,
             'Радость': 0.2,
@@ -97,10 +86,8 @@ class EmotionRecognitionGUI:
             'Отвращение': 0.05
         }
 
-        # ФИКС: режим работы
         self.recognition_mode = tk.StringVar(value="aggressive")
 
-        # Инициализация PyAudio
         try:
             self.audio = pyaudio.PyAudio()
             self.audio_available = True
@@ -110,10 +97,8 @@ class EmotionRecognitionGUI:
             self.audio_available = False
             self.use_microphone.set(False)
 
-        # Создание интерфейса
         self.create_widgets()
 
-        # Загрузка моделей
         self.load_models()
 
     def apply_prediction_correction(self, emotion, confidence, mode):
@@ -121,44 +106,35 @@ class EmotionRecognitionGUI:
         mode_data = self.prediction_correction[mode]
         mode_data['last_predictions'].append(emotion)
 
-        # Ограничиваем размер буфера
         if len(mode_data['last_predictions']) > mode_data['max_same_predictions']:
             mode_data['last_predictions'].pop(0)
 
-        # Проверяем на залипание
         if len(mode_data['last_predictions']) >= mode_data['max_same_predictions'] - 2:
             from collections import Counter
             most_common = Counter(mode_data['last_predictions']).most_common(1)[0]
 
-            # Если слишком много одинаковых предсказаний подряд
             if most_common[1] >= mode_data['max_same_predictions'] - 2:
                 print(f"Коррекция: {mode} модель залипла на '{emotion}'")
 
-                # Применяем коррекцию на основе приоритетов
                 corrected_emotion = self.get_corrected_emotion(emotion, mode)
                 if corrected_emotion != emotion:
                     print(f"Коррекция: заменяем '{emotion}' на '{corrected_emotion}'")
                     emotion = corrected_emotion
                     confidence = confidence * 0.7
 
-                # Сбрасываем буфер
                 mode_data['last_predictions'] = []
 
         return emotion, confidence
 
     def get_corrected_emotion(self, stuck_emotion, mode):
         """Возвращает скорректированную эмоцию на основе приоритетов"""
-        # Исключаем залипшую эмоцию
         available_emotions = [e for e in self.emotions_ru if e != stuck_emotion]
 
-        # Взвешиваем по приоритетам
         weights = [self.emotion_priority.get(emotion, 0.1) for emotion in available_emotions]
 
-        # Нормализуем веса
         total_weight = sum(weights)
         normalized_weights = [w / total_weight for w in weights]
 
-        # Выбираем случайную эмоцию с учетом весов
         import random
         corrected_emotion = random.choices(available_emotions, weights=normalized_weights)[0]
 
@@ -166,7 +142,6 @@ class EmotionRecognitionGUI:
 
     def create_widgets(self):
         """Создание элементов интерфейса"""
-        # Заголовок
         title_label = tk.Label(
             self.root,
             text="Распознавание эмоций в реальном времени",
@@ -174,7 +149,6 @@ class EmotionRecognitionGUI:
         )
         title_label.pack(pady=10)
 
-        # Чекбоксы
         checkboxes_frame = tk.Frame(self.root)
         checkboxes_frame.pack(pady=5)
 
@@ -195,7 +169,6 @@ class EmotionRecognitionGUI:
         )
         mic_check.pack(side=tk.LEFT, padx=20)
 
-        # ФИКС: переключатель режимов работы
         mode_frame = tk.Frame(self.root)
         mode_frame.pack(pady=5)
 
@@ -213,7 +186,6 @@ class EmotionRecognitionGUI:
                                          variable=self.recognition_mode, value="aggressive")
         mode_aggressive.pack(side=tk.LEFT, padx=5)
 
-        # Кнопки управления
         buttons_frame = tk.Frame(self.root)
         buttons_frame.pack(pady=10)
 
@@ -242,11 +214,9 @@ class EmotionRecognitionGUI:
         )
         self.stop_button.pack(side=tk.LEFT, padx=10)
 
-        # Основной контейнер
         main_container = tk.Frame(self.root)
         main_container.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
 
-        # Левая часть - видео
         video_frame = tk.Frame(main_container, bg="black", relief=tk.RAISED, borderwidth=2)
         video_frame.pack(side=tk.LEFT, padx=10, fill=tk.BOTH, expand=True)
 
@@ -262,7 +232,6 @@ class EmotionRecognitionGUI:
         )
         self.video_label.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        # Правая часть - информация
         info_frame = tk.Frame(main_container, bg="lightgray", relief=tk.RAISED, borderwidth=2, width=300)
         info_frame.pack(side=tk.RIGHT, padx=10, fill=tk.BOTH, expand=False)
         info_frame.pack_propagate(False)
@@ -300,7 +269,6 @@ class EmotionRecognitionGUI:
         )
         self.mode_label.pack(pady=10)
 
-        # Статус
         self.status_label = tk.Label(
             self.root,
             text="Готов к запуску",
@@ -329,9 +297,9 @@ class EmotionRecognitionGUI:
         dirs = glob.glob(pattern)
         if not dirs:
             return None
-        
+
         dirs.sort(key=os.path.getmtime, reverse=True)
-        
+
         for dir_path in dirs:
             possible_paths = [
                 os.path.join(dir_path, "final_model.h5"),
@@ -341,77 +309,69 @@ class EmotionRecognitionGUI:
                 os.path.join(dir_path, "final_multimodal_model.h5"),
                 os.path.join(dir_path, "best_multimodal_model.h5"),
             ]
-            
+
             for model_path in possible_paths:
                 if os.path.exists(model_path):
                     return model_path
-        
+
         return None
-    
+
     def load_models(self):
-        """Загрузка моделей"""
         try:
-            # Поиск моделей
             visual_model_path = self.find_latest_model("logs/training/visual_*")
             audio_model_path = self.find_latest_model("logs/training/audio_*")
             multimodal_model_path = self.find_latest_model("logs/training/multimodal_*")
-            
+
             if not visual_model_path:
                 messagebox.showwarning("Предупреждение", "Визуальная модель не найдена!")
                 return
-            
+
             if not audio_model_path:
                 messagebox.showwarning("Предупреждение", "Аудио модель не найдена!")
                 return
-            
-            # Загрузка моделей
+
             self.status_label.config(text="Загрузка моделей...")
             self.root.update()
-            
+
             self.visual_model = tf.keras.models.load_model(visual_model_path, compile=False)
-            
+
             if self.use_microphone.get():
                 self.audio_model = tf.keras.models.load_model(audio_model_path, compile=False)
-            
+
             if multimodal_model_path and os.path.exists(multimodal_model_path):
                 try:
                     self.multimodal_model = tf.keras.models.load_model(
-                        multimodal_model_path, 
+                        multimodal_model_path,
                         compile=False,
                         safe_mode=False
                     )
                 except:
                     self.multimodal_model = None
-            
+
             self.status_label.config(text="Модели загружены")
-            
+
         except Exception as e:
             messagebox.showerror("Ошибка", f"Ошибка загрузки моделей: {str(e)}")
             self.status_label.config(text="Ошибка загрузки моделей")
-    
+
     def preprocess_frame(self, frame):
         """Предобработка кадра"""
         try:
-            # Конвертируем в grayscale
             if len(frame.shape) == 3:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             else:
                 gray = frame
-            
-            # Изменяем размер до 48x48
+
             resized = cv2.resize(gray, (48, 48), interpolation=cv2.INTER_AREA)
-            
-            # Нормализуем в диапазон [0, 1]
+
             normalized = resized.astype(np.float32) / 255.0
-            
-            # Проверяем нормализацию
+
             if normalized.min() < 0 or normalized.max() > 1:
                 print(f"Предупреждение: нормализация некорректна: min={normalized.min()}, max={normalized.max()}")
                 normalized = np.clip(normalized, 0, 1)
-            
-            # Добавляем batch и channel dimensions
+
             processed = normalized.reshape(1, 48, 48, 1)
-            
+
             return processed
         except Exception as e:
             print(f"Ошибка обработки кадра: {e}")
@@ -422,52 +382,42 @@ class EmotionRecognitionGUI:
     def preprocess_audio_chunk(self, audio_data, for_multimodal=False):
         """Предобработка аудио"""
         try:
-            # Если переданы байты, конвертируем в numpy array
             if isinstance(audio_data, bytes):
                 audio_np = np.frombuffer(audio_data, dtype=np.float32)
             else:
                 audio_np = audio_data
 
-            # Если это не для мультимодальной модели, добавляем в буфер
             if not for_multimodal:
                 self.audio_buffer.extend(audio_np)
 
-                # Ограничиваем размер буфера (3 секунды)
                 max_size = self.audio_settings['sample_rate'] * 3
                 if len(self.audio_buffer) > max_size:
                     self.audio_buffer = self.audio_buffer[-max_size:]
 
-            # Для мультимодальной модели используем переданные данные напрямую
             if for_multimodal:
                 audio_segment = audio_np
             else:
-                # Если накопилось достаточно данных (1 секунда)
                 if len(self.audio_buffer) >= self.audio_settings['sample_rate']:
                     audio_segment = np.array(self.audio_buffer[-self.audio_settings['sample_rate']:])
                 else:
                     return None
 
-            # Проверяем длину аудио сегмента
             if len(audio_segment) < self.audio_settings['sample_rate']:
-                # Дополняем нулями если нужно
                 pad_length = self.audio_settings['sample_rate'] - len(audio_segment)
                 audio_segment = np.pad(audio_segment, (0, pad_length), mode='constant')
 
-            # Нормализация аудио
             audio_segment = librosa.util.normalize(audio_segment)
             audio_segment = np.clip(audio_segment, -1.0, 1.0)
 
-            # Проверка энергии аудио
             audio_energy = np.mean(np.abs(audio_segment))
-            if audio_energy < 0.01:  # Слишком тихо
+            if audio_energy < 0.01:
                 return None
 
             if for_multimodal:
-                # ФИКС: для мультимодальной модели - только 13 MFCC без дельт
                 mfcc = librosa.feature.mfcc(
                     y=audio_segment,
                     sr=self.audio_settings['sample_rate'],
-                    n_mfcc=13,  # Только 13 коэффициентов
+                    n_mfcc=13,
                     n_fft=self.audio_settings['n_fft'],
                     hop_length=self.audio_settings['hop_length'],
                     n_mels=128,
@@ -475,10 +425,16 @@ class EmotionRecognitionGUI:
                     fmax=self.audio_settings['sample_rate'] / 2
                 )
 
-                # ФИКС: НЕ добавляем дельты для мультимодальной модели
                 mfcc_combined = mfcc
+
+                if mfcc_combined.shape[0] != 13:
+                    print(f"ОШИБКА: Ожидалось 13 MFCC features, получено {mfcc_combined.shape[0]}")
+                    if mfcc_combined.shape[0] > 13:
+                        mfcc_combined = mfcc_combined[:13, :]
+                    else:
+                        pad_features = np.zeros((13 - mfcc_combined.shape[0], mfcc_combined.shape[1]))
+                        mfcc_combined = np.vstack([mfcc_combined, pad_features])
             else:
-                # Для аудио модели - 13 MFCC + дельты (39 features)
                 mfcc = librosa.feature.mfcc(
                     y=audio_segment,
                     sr=self.audio_settings['sample_rate'],
@@ -490,25 +446,32 @@ class EmotionRecognitionGUI:
                     fmax=self.audio_settings['sample_rate'] / 2
                 )
 
-                # Добавляем дельты и дельта-дельты
                 mfcc_delta = librosa.feature.delta(mfcc)
                 mfcc_delta2 = librosa.feature.delta(mfcc, order=2)
 
-                # Объединяем features (39 features: 13 MFCC + 13 delta + 13 delta2)
                 mfcc_combined = np.vstack([mfcc, mfcc_delta, mfcc_delta2])
 
-            # Нормализация MFCC
             mfcc_combined = (mfcc_combined - np.mean(mfcc_combined)) / (np.std(mfcc_combined) + 1e-8)
 
-            # Приводим к нужной форме
             if mfcc_combined.shape[1] > self.audio_settings['max_length']:
                 mfcc_combined = mfcc_combined[:, :self.audio_settings['max_length']]
             else:
                 pad_width = self.audio_settings['max_length'] - mfcc_combined.shape[1]
                 mfcc_combined = np.pad(mfcc_combined, ((0, 0), (0, pad_width)), mode='constant')
 
-            # Добавляем dimension для канала
-            mfcc_combined = mfcc_combined.reshape(1, mfcc_combined.shape[0], mfcc_combined.shape[1], 1)
+            if for_multimodal:
+                if mfcc_combined.shape != (13, self.audio_settings['max_length']):
+                    print(f"ОШИБКА формы MFCC: ожидалось (13, {self.audio_settings['max_length']}), получено {mfcc_combined.shape}")
+                    if mfcc_combined.shape[0] != 13:
+                        if mfcc_combined.shape[0] > 13:
+                            mfcc_combined = mfcc_combined[:13, :]
+                        else:
+                            pad_features = np.zeros((13 - mfcc_combined.shape[0], mfcc_combined.shape[1]))
+                            mfcc_combined = np.vstack([mfcc_combined, pad_features])
+
+                mfcc_combined = mfcc_combined.reshape(1, 13, self.audio_settings['max_length'], 1)
+            else:
+                mfcc_combined = mfcc_combined.reshape(1, mfcc_combined.shape[0], mfcc_combined.shape[1], 1)
 
             return mfcc_combined
 
@@ -518,7 +481,7 @@ class EmotionRecognitionGUI:
             traceback.print_exc()
 
         return None
-    
+
     def audio_callback(self, in_data, frame_count, time_info, status):
         """Callback для аудио потока"""
         if self.is_running:
@@ -536,7 +499,6 @@ class EmotionRecognitionGUI:
                 processed_audio = self.preprocess_audio_chunk(audio_data, for_multimodal=False)
 
                 if processed_audio is not None and self.audio_model:
-                    # Проверка на тишину/шум
                     audio_segment = np.array(self.audio_buffer[-self.audio_settings['sample_rate']:])
                     audio_energy = np.mean(np.abs(audio_segment))
 
@@ -550,7 +512,6 @@ class EmotionRecognitionGUI:
                     common_emotion_idx = self.ravdess_to_common.get(audio_class, 6)
                     emotion = self.emotions_ru[common_emotion_idx]
 
-                    # ФИКС: применяем коррекцию для аудио
                     emotion, audio_confidence = self.apply_prediction_correction(emotion, audio_confidence, 'audio')
 
                     if not self.use_camera.get():
@@ -598,7 +559,6 @@ class EmotionRecognitionGUI:
                 if not self.use_camera.get():
                     continue
 
-                # Отображаем видео в GUI
                 try:
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame_resized = cv2.resize(frame_rgb, (640, 480))
@@ -609,25 +569,31 @@ class EmotionRecognitionGUI:
                 except Exception as e:
                     print(f"Ошибка отображения видео: {e}")
 
-                # Предобработка кадра для модели
                 processed_frame = self.preprocess_frame(frame)
 
                 if processed_frame is not None and self.visual_model:
-                    # Всегда используем мультимодальную модель если доступна
                     use_multimodal = (self.multimodal_model and
                                       self.use_microphone.get() and
                                       len(self.audio_buffer) >= self.audio_settings['sample_rate'])
 
                     if use_multimodal:
                         try:
-                            # Берем последнюю секунду аудио из буфера
                             audio_segment = np.array(self.audio_buffer[-self.audio_settings['sample_rate']:])
 
-                            # Обрабатываем для мультимодальной модели
                             audio_features = self.preprocess_audio_chunk(audio_segment, for_multimodal=True)
 
                             if audio_features is not None:
-                                # Мультимодальное предсказание
+                                expected_shape = (1, 13, self.audio_settings['max_length'], 1)
+                                if audio_features.shape != expected_shape:
+                                    print(f"ОШИБКА: Неправильная форма audio_features: {audio_features.shape}, ожидалось: {expected_shape}")
+                                    if len(audio_features.shape) == 3 and audio_features.shape == (1, 39, self.audio_settings['max_length']):
+                                        audio_features = audio_features[:, :13, :]
+                                        audio_features = np.expand_dims(audio_features, -1)
+                                        print(f"Исправлена форма на: {audio_features.shape}")
+                                    else:
+                                        print("Не удалось исправить форму, пропускаем предсказание")
+                                        continue
+
                                 multimodal_pred = self.multimodal_model.predict(
                                     [processed_frame, audio_features],
                                     verbose=0
@@ -638,7 +604,6 @@ class EmotionRecognitionGUI:
                                 emotion = self.emotions_ru[multimodal_class] if 0 <= multimodal_class < len(
                                     self.emotions_ru) else "Нейтрально"
 
-                                # ФИКС: применяем коррекцию для мультимодальной модели
                                 emotion, multimodal_confidence = self.apply_confidence_threshold(emotion,
                                                                                                  multimodal_confidence,
                                                                                                  'multimodal')
@@ -649,7 +614,6 @@ class EmotionRecognitionGUI:
                                                                                                  multimodal_confidence,
                                                                                                  'multimodal')
 
-                                # Сглаживание предсказаний
                                 emotion_idx = self.emotions_ru.index(emotion) if emotion in self.emotions_ru else 6
                                 self.prediction_buffer.append(emotion_idx)
                                 if len(self.prediction_buffer) > self.buffer_size:
@@ -690,12 +654,10 @@ class EmotionRecognitionGUI:
 
         emotion = self.emotions_ru[visual_class] if 0 <= visual_class < len(self.emotions_ru) else "Нейтрально"
 
-        # ФИКС: применяем все виды коррекции
         emotion, visual_confidence = self.apply_confidence_threshold(emotion, visual_confidence, 'visual')
         emotion, visual_confidence = self.apply_prediction_correction(emotion, visual_confidence, 'visual')
         emotion, visual_confidence = self.apply_heuristic_correction(emotion, visual_confidence, 'visual')
 
-        # Сглаживание предсказаний
         emotion_idx = self.emotions_ru.index(emotion) if emotion in self.emotions_ru else 6
         self.prediction_buffer.append(emotion_idx)
         if len(self.prediction_buffer) > self.buffer_size:
@@ -710,18 +672,17 @@ class EmotionRecognitionGUI:
 
         self.current_confidence = float(visual_confidence)
         self.current_mode = "Визуальный"
-    
+
     def update_video_display(self, photo):
         """Обновление отображения видео (вызывается из главного потока)"""
         try:
             self.video_label.config(image=photo, text="")
-            self.video_label.image = photo  # Сохраняем ссылку, чтобы изображение не удалялось
+            self.video_label.image = photo
         except Exception as e:
             print(f"Ошибка обновления видео: {e}")
 
     def update_ui(self):
         """Обновление интерфейса с индикацией проблем"""
-        # Определяем цвет в зависимости от уверенности и режима
         if self.current_confidence < 0.3:
             emotion_color = "gray"
         elif self.current_confidence < 0.6:
@@ -739,7 +700,6 @@ class EmotionRecognitionGUI:
         )
         self.mode_label.config(text=f"Режим: {self.current_mode}")
 
-        # Индикация проблем с моделями
         if hasattr(self, '_model_warnings'):
             warning_text = " | ".join(self._model_warnings)
             self.status_label.config(text=f"ВНИМАНИЕ: {warning_text}", fg="red")
@@ -748,21 +708,18 @@ class EmotionRecognitionGUI:
         """Применяет эвристические правила для коррекции"""
         import random
 
-        # Правило 1: Удивление редко длится долго
         if emotion == "Удивление" and confidence > 0.8:
             if random.random() < 0.7:
                 alternatives = ["Нейтрально", "Радость", "Страх"]
                 emotion = random.choice(alternatives)
                 confidence = confidence * 0.6
 
-        # Правило 2: Отвращение редко как основная эмоция
         elif emotion == "Отвращение" and confidence > 0.7:
             if random.random() < 0.8:
                 alternatives = ["Нейтрально", "Злость", "Грусть"]
                 emotion = random.choice(alternatives)
                 confidence = confidence * 0.5
 
-        # Правило 3: Чаще всего нейтральная эмоция
         elif emotion != "Нейтрально" and confidence < 0.4:
             emotion = "Нейтрально"
             confidence = 0.5
@@ -773,21 +730,20 @@ class EmotionRecognitionGUI:
         if not self.use_camera.get() and not self.use_microphone.get():
             messagebox.showwarning("Предупреждение", "Необходимо включить хотя бы камеру или микрофон!")
             return
-        
+
         if not self.visual_model:
             messagebox.showerror("Ошибка", "Визуальная модель не загружена!")
             return
-        
+
         if self.use_microphone.get() and not self.audio_model:
             messagebox.showerror("Ошибка", "Аудио модель не загружена!")
             return
-        
+
         self.is_running = True
         self.start_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
         self.status_label.config(text="Распознавание запущено...")
-        
-        # Определяем режим работы
+
         if self.use_camera.get() and self.use_microphone.get():
             if self.multimodal_model:
                 self.current_mode = "Мультимодальный"
@@ -801,16 +757,14 @@ class EmotionRecognitionGUI:
         elif self.use_microphone.get():
             self.current_mode = "Аудио"
             self.status_label.config(text="Аудио распознавание запущено...")
-        
+
         self.update_ui()
-        
-        # Запуск потоков
+
         if self.use_camera.get():
             video_thread = threading.Thread(target=self.video_processing_thread, daemon=True)
             video_thread.start()
 
         if self.use_microphone.get() and self.audio_available:
-            # Найти индекс USB микрофона
             usb_device_index = None
             for i in range(self.audio.get_device_count()):
                 info = self.audio.get_device_info_by_index(i)
@@ -819,7 +773,6 @@ class EmotionRecognitionGUI:
                     print(f"Найден USB микрофон: {info['name']} (индекс {i})")
                     break
 
-            # Использовать USB микрофон если найден, иначе системный по умолчанию
             device_index = usb_device_index if usb_device_index is not None else None
 
             audio_thread = threading.Thread(target=self.audio_processing_thread, daemon=True)
@@ -830,7 +783,7 @@ class EmotionRecognitionGUI:
                 channels=self.audio_settings['channels'],
                 rate=self.audio_settings['sample_rate'],
                 input=True,
-                input_device_index=device_index,  # Указываем конкретное устройство
+                input_device_index=device_index,
                 frames_per_buffer=self.audio_settings['chunk_size'],
                 stream_callback=self.audio_callback
             )
@@ -842,32 +795,30 @@ class EmotionRecognitionGUI:
             print(f"Используется камера: {self.use_camera.get()}")
             print(f"Используется микрофон: {self.use_microphone.get()}")
             print("==========================")
-    
+
     def stop_recognition(self):
         """Остановка распознавания"""
         self.is_running = False
-        
+
         if hasattr(self, 'audio_stream'):
             try:
                 self.audio_stream.stop_stream()
                 self.audio_stream.close()
             except:
                 pass
-        
+
         self.start_button.config(state=tk.NORMAL)
         self.stop_button.config(state=tk.DISABLED)
         self.status_label.config(text="Распознавание остановлено")
         self.current_emotion = "Нейтрально"
         self.current_confidence = 0.0
         self.current_mode = "Ожидание"
-        
-        # Очищаем буфер предсказаний
+
         self.prediction_buffer = []
-        
-        # Очищаем видео
+
         self.video_label.config(image='')
         self.video_label.image = None
-        
+
         self.update_ui()
 
 

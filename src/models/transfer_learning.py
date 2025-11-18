@@ -12,7 +12,6 @@ class TransferLearningModels:
             input_shape=input_shape
         )
 
-        # Заморозка базовой модели
         base_model.trainable = False
 
         model = models.Sequential([

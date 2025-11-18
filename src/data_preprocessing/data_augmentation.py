@@ -22,11 +22,9 @@ class DataAugmentor:
             image = X[i]
             label = y[i]
 
-            # Добавляем оригинальное изображение
             augmented_images.append(image)
             augmented_labels.append(label)
 
-            # Генерируем аугментированные версии
             image_batch = np.expand_dims(image, 0)
             for augmented_image in self.datagen.flow(image_batch, batch_size=1):
                 augmented_images.append(augmented_image[0])

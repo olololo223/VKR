@@ -15,12 +15,9 @@ class RavdessAudioProcessor:
         self.ravdess_config = self.config['ravdess']
 
     def extract_mfcc_features(self, audio_path):
-        """Извлечение MFCC features из аудиофайла"""
         try:
-            # Загрузка аудио
             y, sr = librosa.load(audio_path, sr=self.audio_config['sample_rate'])
 
-            # Извлечение MFCC
             mfcc = librosa.feature.mfcc(
                 y=y,
                 sr=sr,
@@ -29,10 +26,8 @@ class RavdessAudioProcessor:
                 hop_length=self.audio_config['hop_length']
             )
 
-            # Нормализация
             mfcc = (mfcc - np.mean(mfcc)) / np.std(mfcc)
 
-            # Обеспечение одинаковой длины
             if mfcc.shape[1] > self.audio_config['max_length']:
                 mfcc = mfcc[:, :self.audio_config['max_length']]
             else:
@@ -46,7 +41,6 @@ class RavdessAudioProcessor:
             return None
 
     def parse_filename(self, filename):
-        """Парсинг имени файла RAVDESS для извлечения метаданных"""
         parts = filename.split('-')
 
         if len(parts) >= 7:
@@ -62,7 +56,6 @@ class RavdessAudioProcessor:
         return None
 
     def process_ravdess_audio_dataset(self, dataset_path, output_dir):
-        """Обработка всего аудио датасета RAVDESS"""
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
@@ -70,7 +63,6 @@ class RavdessAudioProcessor:
         labels = []
         metadata = []
 
-        # Рекурсивный поиск WAV файлов
         wav_files = []
         for root, dirs, files in os.walk(dataset_path):
             for file in files:
@@ -80,17 +72,14 @@ class RavdessAudioProcessor:
         print(f"Найдено {len(wav_files)} аудиофайлов")
 
         for audio_path in tqdm(wav_files, desc="Обработка аудиофайлов"):
-            # Парсинг имени файла
             filename = os.path.basename(audio_path)
             file_info = self.parse_filename(filename)
 
             if file_info:
-                # Извлечение эмоции
                 emotion_code = file_info['emotion']
                 emotion_label = self.ravdess_config['emotion_map'].get(emotion_code)
 
                 if emotion_label is not None:
-                    # Извлечение MFCC features
                     mfcc_features = self.extract_mfcc_features(audio_path)
 
                     if mfcc_features is not None:
@@ -98,21 +87,17 @@ class RavdessAudioProcessor:
                         labels.append(emotion_label)
                         metadata.append(file_info)
 
-        # Преобразование в numpy arrays
         features = np.array(features)
         labels = np.array(labels)
 
-        # Добавление channel dimension для совместимости с CNN
         features = np.expand_dims(features, -1)
 
         print(f"Форма features: {features.shape}")
         print(f"Распределение меток: {np.bincount(labels)}")
 
-        # Сохранение обработанных данных
         np.save(os.path.join(output_dir, 'ravdess_audio_features.npy'), features)
         np.save(os.path.join(output_dir, 'ravdess_audio_labels.npy'), labels)
 
-        # Сохранение метаданных
         metadata_df = pd.DataFrame(metadata)
         metadata_df.to_csv(os.path.join(output_dir, 'ravdess_metadata.csv'), index=False)
 

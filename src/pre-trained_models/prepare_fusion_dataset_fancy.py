@@ -7,28 +7,23 @@ from transformers import (
     Wav2Vec2Processor, Wav2Vec2Model,
     AutoTokenizer, AutoModel, pipeline
 )
-from tqdm import tqdm
-from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn, SpinnerColumn
 import whisper
+import random
 
-# === Пути ===
 DATASET_DIR = "datasets"
 FER_DIR = os.path.join(DATASET_DIR, "fer2013plus", "train")
 RAVDESS_DIR = os.path.join(DATASET_DIR, "ravdess")
-TEXT_SAVE_DIR = os.path.join(DATASET_DIR, "texts")
-SAVE_PATH = "fusion_dataset.pt"
 
-# === Устройство ===
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# === Эмоции ===
+
+DEVICE = "cpu"
+
 EMOTIONS = ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]
 emotion_to_id = {e: i for i, e in enumerate(EMOTIONS)}
 
-# === Карта эмоций RAVDESS ===
 emotion_map = {
     "01": "neutral",
-    "02": "neutral",  # calm → neutral
+    "02": "neutral",
     "03": "happy",
     "04": "sad",
     "05": "angry",
@@ -37,10 +32,6 @@ emotion_map = {
     "08": "surprise"
 }
 
-# === Модели ===
-print("🔧 Загрузка моделей...")
-
-# ResNet (визуальная)
 resnet = models.resnet18()
 resnet.fc = torch.nn.Identity()
 resnet.load_state_dict(
@@ -56,24 +47,19 @@ transform = transforms.Compose([
                          std=[0.229, 0.224, 0.225])
 ])
 
-# Wav2Vec2 (аудио)
 wav2proc = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
 wav2model = Wav2Vec2Model.from_pretrained("models/wav2vec2").to(DEVICE)
 wav2model.eval()
 
-# RuBERT (русский)
 rubert_tok = AutoTokenizer.from_pretrained("models/rubert_emotion_model")
 rubert = AutoModel.from_pretrained("models/rubert_emotion_model").to(DEVICE)
 rubert.eval()
 
-# English GoEmotions (английский)
 eng_model = "SamLowe/roberta-base-go_emotions"
 eng_analyzer = pipeline("feature-extraction", model=eng_model, tokenizer=eng_model, device=0 if DEVICE=="cuda" else -1)
 
-# Whisper (Speech-to-Text)
 whisper_model = whisper.load_model("base", device=DEVICE)
 
-# === Функции ===
 
 def get_img_emb(path):
     try:
@@ -112,7 +98,7 @@ def transcribe_audio(audio_path, txt_path):
     return text, lang
 
 def get_text_emb(audio_path, emotion, base):
-    txt_path = os.path.join(TEXT_SAVE_DIR, emotion, f"{base}.txt")
+    txt_path = os.path.join(os.path.join(DATASET_DIR, "texts"), emotion, f"{base}.txt")
     text, lang = transcribe_audio(audio_path, txt_path)
 
     if not text:
@@ -129,73 +115,52 @@ def get_text_emb(audio_path, emotion, base):
         emb = torch.tensor(outputs[0]).mean(dim=0)
         return emb
 
-# === Основной цикл ===
 data = {"img": [], "aud": [], "txt": [], "label": []}
 
-print("\n🚀 Генерация Fusion-эмбеддингов...")
 
-with Progress(
-    SpinnerColumn(),
-    TextColumn("[bold blue]{task.description}"),
-    BarColumn(),
-    TimeRemainingColumn(),
-) as progress:
-    task = progress.add_task("Обработка RAVDESS...", total=24)
 
-    for actor in os.listdir(RAVDESS_DIR):
-        actor_dir = os.path.join(RAVDESS_DIR, actor)
-        if not os.path.isdir(actor_dir):
+for actor in os.listdir(RAVDESS_DIR):
+    actor_dir = os.path.join(RAVDESS_DIR, actor)
+    if not os.path.isdir(actor_dir):
+        continue
+
+    for fname in os.listdir(actor_dir):
+        if not fname.endswith(".wav"):
             continue
 
-        for fname in os.listdir(actor_dir):
-            if not fname.endswith(".wav"):
-                continue
+        parts = fname.split("-")
+        if len(parts) < 3:
+            continue
 
-            parts = fname.split("-")
-            if len(parts) < 3:
-                continue
+        emotion_id = parts[2]
+        emotion = emotion_map.get(emotion_id)
+        if emotion not in EMOTIONS:
+            continue
 
-            emotion_id = parts[2]
-            emotion = emotion_map.get(emotion_id)
-            if emotion not in EMOTIONS:
-                continue
+        base = os.path.splitext(fname)[0]
+        aud_path = os.path.join(actor_dir, fname)
 
-            base = os.path.splitext(fname)[0]
-            aud_path = os.path.join(actor_dir, fname)
+        img_dir = os.path.join(FER_DIR, emotion)
+        if not os.path.exists(img_dir):
+            continue
+        img_files = os.listdir(img_dir)
+        if not img_files:
+            continue
+        img_path = os.path.join(img_dir, random.choice(img_files))
 
-            # для fer2013+ используем просто ту же эмоцию
-            img_dir = os.path.join(FER_DIR, emotion)
-            if not os.path.exists(img_dir):
-                continue
-            img_files = os.listdir(img_dir)
-            if not img_files:
-                continue
-            img_path = os.path.join(img_dir, img_files[0])  # берём случайное изображение
+        img_emb = get_img_emb(img_path)
+        aud_emb = get_audio_emb(aud_path)
+        txt_emb = get_text_emb(aud_path, emotion, base)
 
-            img_emb = get_img_emb(img_path)
-            aud_emb = get_audio_emb(aud_path)
-            txt_emb = get_text_emb(aud_path, emotion, base)
+        data["img"].append(img_emb)
+        data["aud"].append(aud_emb)
+        data["txt"].append(txt_emb)
+        data["label"].append(emotion_to_id[emotion])
 
-            data["img"].append(img_emb)
-            data["aud"].append(aud_emb)
-            data["txt"].append(txt_emb)
-            data["label"].append(emotion_to_id[emotion])
-
-        progress.advance(task)
 print(data)
-# === Сохраняем всё ===
-# было:
-# for k in data.keys():
-#     data[k] = torch.stack(data[k])
 
-# исправить на:
 for k in data.keys():
-    if k == "label":
-        data[k] = torch.tensor(data[k])  # список чисел → один тензор
-    else:
-        data[k] = torch.stack(data[k])   # список тензоров → батч
+    data[k] = torch.tensor(data[k]) if k == "label" else torch.stack(data[k])
 
+torch.save(data, "fusion_dataset.pt")
 
-torch.save(data, SAVE_PATH)
-print(f"\n✅ Fusion датасет сохранён: {SAVE_PATH}")
-print(f"📦 Размер: {len(data['label'])} примеров")

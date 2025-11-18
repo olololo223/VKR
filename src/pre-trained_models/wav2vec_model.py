@@ -1,26 +1,47 @@
-# wav2vec_model_light.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchaudio
 from transformers import Wav2Vec2Model, Wav2Vec2Processor
 from tqdm import tqdm
+import json
 import os
 
 DATA_PATH = "datasets/ravdess"
 EPOCHS = 10
 BATCH_SIZE = 2
 LR = 1e-4
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cpu"
 
 class RAVDESSDataset(torch.utils.data.Dataset):
-    def __init__(self, folder, processor):
+    def __init__(self, folder, processor, emotion_map):
+        with open('config/model_config.json', 'r', encoding='utf-8') as file:
+            self.config = json.load(file)
         self.samples = []
         self.processor = processor
-        for label in os.listdir(folder):
-            for f in os.listdir(os.path.join(folder, label)):
-                if f.endswith(".wav"):
-                    self.samples.append((os.path.join(folder, label, f), label))
+        self.emotion_map = self.config['ravdess']['emotion_map']
+
+        wav_files = []
+        for root, dirs, files in os.walk(folder):
+            for file in files:
+                if file.endswith('.wav'):
+                    wav_files.append(os.path.join(root, file))
+
+        for path in wav_files:
+            filename = os.path.basename(path)
+            info = self.parse_filename(filename)
+
+            if info is None:
+                continue
+
+            emotion_code = info["emotion"]
+
+            if emotion_code not in emotion_map:
+                continue
+
+            class_id = emotion_map[emotion_code]
+
+            self.samples.append((path, class_id))
         self.labels = sorted(list(set(l for _, l in self.samples)))
         self.label2id = {l: i for i, l in enumerate(self.labels)}
 
@@ -28,18 +49,42 @@ class RAVDESSDataset(torch.utils.data.Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        path, label = self.samples[idx]
+        path, class_id = self.samples[idx]
         waveform, sr = torchaudio.load(path)
-        waveform = waveform.mean(dim=0)  # mono
-        inputs = self.processor(waveform, sampling_rate=16000, return_tensors="pt", padding=True)
-        return inputs.input_values.squeeze(0), self.label2id[label]
+
+        waveform = waveform.mean(dim=0)
+
+        inputs = self.processor(
+            waveform,
+            sampling_rate=16000,
+            return_tensors="pt",
+            padding=True
+        )
+
+        return inputs.input_values.squeeze(0), class_id
+
+    def parse_filename(self, filename):
+        parts = filename.split('-')
+
+        if len(parts) >= 7:
+            return {
+                'modality': parts[0],
+                'vocal_channel': parts[1],
+                'emotion': parts[2],
+                'intensity': parts[3],
+                'statement': parts[4],
+                'repetition': parts[5],
+                'actor': parts[6].split('.')[0]
+            }
+        return None
+
 
 class Wav2VecClassifier(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
         self.wav2vec = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")
         for p in self.wav2vec.parameters():
-            p.requires_grad = False  # заморозим encoder
+            p.requires_grad = False
         self.fc = nn.Sequential(
             nn.Linear(768, 256),
             nn.ReLU(),
@@ -61,7 +106,6 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.fc.parameters(), lr=LR)
     criterion = nn.CrossEntropyLoss()
 
-    print(f"🎤 Обучение Wav2Vec2 на {DEVICE} ({len(ds)} аудио)")
     for epoch in range(EPOCHS):
         model.train()
         running_loss = 0
@@ -73,7 +117,4 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        print(f"  Средний loss: {running_loss/len(dl):.4f}")
-
     torch.save(model.state_dict(), "wav2vec_emotion_light.pth")
-    print("✅ Модель сохранена: wav2vec_emotion_light.pth")

@@ -3,12 +3,11 @@ import glob
 
 def find_latest_models():
     """Поиск последних обученных моделей"""
-    
-    # Поиск визуальных моделей
+
     visual_pattern = "logs/training/visual_*"
     visual_dirs = glob.glob(visual_pattern)
     visual_dirs.sort(key=os.path.getmtime, reverse=True)
-    
+
     visual_model = None
     if visual_dirs:
         latest_visual_dir = visual_dirs[0]
@@ -16,7 +15,6 @@ def find_latest_models():
         if os.path.exists(visual_model):
             print(f"Найдена визуальная модель: {visual_model}")
         else:
-            # Попробуем найти best_model
             visual_model = os.path.join(latest_visual_dir, "best_model.h5")
             if os.path.exists(visual_model):
                 print(f"Найдена визуальная модель: {visual_model}")
@@ -25,12 +23,11 @@ def find_latest_models():
                 visual_model = None
     else:
         print("Директории с визуальными моделями не найдены")
-    
-    # Поиск аудио моделей
+
     audio_pattern = "logs/training/audio_*"
     audio_dirs = glob.glob(audio_pattern)
     audio_dirs.sort(key=os.path.getmtime, reverse=True)
-    
+
     audio_model = None
     if audio_dirs:
         latest_audio_dir = audio_dirs[0]
@@ -38,7 +35,6 @@ def find_latest_models():
         if os.path.exists(audio_model):
             print(f"Найдена аудио модель: {audio_model}")
         else:
-            # Попробуем найти best_audio_model
             audio_model = os.path.join(latest_audio_dir, "best_audio_model.h5")
             if os.path.exists(audio_model):
                 print(f"Найдена аудио модель: {audio_model}")
@@ -47,7 +43,7 @@ def find_latest_models():
                 audio_model = None
     else:
         print("Директории с аудио моделями не найдены")
-    
+
     return visual_model, audio_model
 
 if __name__ == "__main__":

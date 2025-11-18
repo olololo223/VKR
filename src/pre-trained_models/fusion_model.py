@@ -2,19 +2,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"🧠 Используем устройство: {DEVICE}")
+DEVICE = torch.device("cpu")
 
-# === Загрузка данных ===
 data = torch.load("fusion_dataset.pt", map_location=DEVICE)
 X_img, X_aud, X_txt, y = data["img"], data["aud"], data["txt"], data["label"]
 
-# === Разделение на train / val ===
 n = int(0.8 * len(y))
 train = {k: v[:n] for k, v in data.items()}
 val   = {k: v[n:] for k, v in data.items()}
 
-# === Модель ===
 class FusionModel(nn.Module):
     def __init__(self, dim_img=512, dim_aud=768, dim_txt=768, hidden=512, num_classes=7):
         super().__init__()
@@ -40,7 +36,6 @@ model = FusionModel().to(DEVICE)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
 
-# === Обучение ===
 EPOCHS = 30
 for epoch in range(EPOCHS):
     model.train()
@@ -51,7 +46,6 @@ for epoch in range(EPOCHS):
     loss.backward()
     optimizer.step()
 
-    # валидация
     model.eval()
     with torch.no_grad():
         val_outputs = model(val["img"], val["aud"], val["txt"])

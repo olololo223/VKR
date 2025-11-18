@@ -8,7 +8,6 @@ def main():
 
     print("Найденные столбцы:", df.columns.tolist())
 
-    # проверяем доступные поля
     has_acc = "accuracy" in df.columns and "val_accuracy" in df.columns
     has_loss = "loss" in df.columns and "val_loss" in df.columns
 
@@ -16,16 +15,11 @@ def main():
         print("В CSV нет подходящих столбцов (loss/val_loss или accuracy/val_accuracy).")
         return
 
-    # ==============================
-    # ГРАФИК LOSS
-    # ==============================
     plt.figure(figsize=(10, 5))
-    plt.plot(df["loss"], label="Train Loss")
-    #plt.plot(df["val_loss"], label="Val Loss")
-    plt.plot(df["accuracy"], label="Train Accuracy")
-    #plt.plot(df["val_accuracy"], label="Val Accuracy")
-    plt.xlabel("Epoch")
-    plt.title("Accuracy and loss curves")
+    plt.plot(df["loss"], label="Потери(loss)")
+    plt.plot(df["accuracy"], label="Точность(accuracy)")
+    plt.xlabel("Эпоха")
+    plt.title("Кривые точности и потерь")
     plt.legend()
     plt.grid(True)
     plt.savefig("accuracy_loss_plot.png", dpi=150)
